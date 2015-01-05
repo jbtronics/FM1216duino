@@ -51,31 +51,31 @@ void FM1216::init()
 
 void FM1216::setStereo(boolean b)
 {
-	bitWrite(BB, 6, !b);
+	bitWrite(BB, P6, !b);
 	update();
 }
 
 void FM1216::setHighSens(boolean b)
 {
-	bitWrite(BD, 6, b);
+	bitWrite(BD, B6, b);
 	update();
 }
 
 void FM1216::ForceMute(boolean b)
 {
-	bitWrite(BD, 5, b);
+	bitWrite(BD, B5, b);
 	update();
 }
 
 void FM1216::setChargePump(uint8_t u)
 {
-	bitWrite(CB, 6, u);
+	bitWrite(CB, CP, u);
 	update();
 }
 
 void FM1216::disablePLL(boolean b)
 {
-	bitWrite(CB, 0, b);
+	bitWrite(CB, OS, b);
 	update();
 }
 
@@ -85,23 +85,23 @@ void FM1216::setStepSize(uint8_t step)
 	{
 	case Step_50:
 		StepHz = 50000;
-		bitClear(CB, 1);
-		bitClear(CB, 2);
+		bitClear(CB, RSB);
+		bitClear(CB, RSA);
 		break;
 	case Step_31:
 		StepHz = 31250;
-		bitSet(CB, 1);
-		bitClear(CB, 2);
+		bitSet(CB, RSB);
+		bitClear(CB, RSA);
 		break;
 	case  Step_166:
 		StepHz = 166700;
-		bitClear(CB, 1);
-		bitSet(CB, 2);
+		bitClear(CB, RSB);
+		bitSet(CB, RSA);
 		break;
 	case Step_62:
 		StepHz = 62500;
-		bitSet(CB, 1);
-		bitSet(CB, 2);
+		bitSet(CB, RSB);
+		bitSet(CB, RSA);
 		break;
 	}
 	update();
@@ -112,19 +112,19 @@ void FM1216::setBand(uint8_t band)
 	
 	switch (band){
 	case BAND_L:
-		bitSet(BB, 0);
-		bitClear(BB, 1);
-		bitClear(BB, 2);
+		bitSet(BB, P0);
+		bitClear(BB, P1);
+		bitClear(BB, P2);
 		break;
 	case BAND_M:
-		bitClear(BB, 0);
-		bitSet(BB, 1);
-		bitClear(BB, 2);
+		bitClear(BB, P0);
+		bitSet(BB, P1);
+		bitClear(BB, P2);
 		break;
 	case BAND_H:
-		bitClear(BB, 0);
-		bitClear(BB, 1);
-		bitSet(BB, 2);
+		bitClear(BB, P0);
+		bitClear(BB, P1);
+		bitSet(BB, P2);
 		break;
 	}
 	update();
@@ -132,9 +132,9 @@ void FM1216::setBand(uint8_t band)
 
 void FM1216::setAGC(uint8_t agc)
 {
-	bitWrite(AB, 4, bitRead(agc, 0));
-	bitWrite(AB, 5, bitRead(agc, 1));
-	bitWrite(AB, 6, bitRead(agc, 2));
+	bitWrite(AB, AL0, bitRead(agc, 0));
+	bitWrite(AB, AL1, bitRead(agc, 1));
+	bitWrite(AB, AL2, bitRead(agc, 2));
 	update();
 }
 
@@ -165,7 +165,7 @@ void FM1216::setFreq(uint32_t kHzFreq)
 
 void FM1216::setGain(boolean g)
 {
-	bitWrite(CD, 7,g);
+	bitWrite(CD, C7,g);
 	update();
 }
 
@@ -173,6 +173,161 @@ uint32_t FM1216::getFreq()
 {
 	return Freq;
 }
+
+boolean FM1216::getStereo()
+{
+	return !bitRead(BB, P6);
+}
+
+void FM1216::getStatus()
+{
+	i2c_rep_start(TUNER_R);
+	SB = i2c_read(false);
+	i2c_stop();
+	
+	i2c_rep_start(IF_R);
+	DD = i2c_read(true);
+	i2c_stop();
+}
+
+boolean FM1216::isStereoTrans()
+{
+	getStatus();
+	if (bitRead(SB, SA2) && !bitRead(SB, SA1) && !bitRead(SB, SA0))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+uint8_t FM1216::getPowerOnReset()
+{
+	uint8_t tmp = 0;
+	bitWrite(tmp, 0, bitRead(SB, POR));
+	bitWrite(tmp, 1, bitRead(DD, PONR));
+	return tmp;
+}
+
+boolean FM1216::getFreqLocked()
+{
+	getStatus();
+	return bitRead(SB, FL);
+}
+
+boolean FM1216::isAGC()
+{
+	getStatus();
+	return bitRead(SB, AGC);
+}
+
+boolean FM1216::isFmHigh()
+{
+	getStatus();
+	return bitRead(DD, FMIFL);
+}
+
+boolean FM1216::isVHigh()
+{
+	getStatus();
+	return bitRead(DD, VIFL);
+}
+
+uint8_t FM1216::getAFCStatus()
+{
+	uint8_t tmp;
+	bitWrite(tmp, 0, bitRead(DD, AFC1));
+	bitWrite(tmp, 1, bitRead(DD, AFC2));
+	bitWrite(tmp, 2, bitRead(DD, AFC3));
+	bitWrite(tmp, 3, bitRead(DD, AFC4));
+}
+
+boolean FM1216::isFinAFC()
+{
+	return bitRead(DD, AFCWIN);
+}
+
+void FM1216::scan(boolean up, voidFuncPtr func)
+{
+	uint8_t bak = BD;
+	setHighSens(false);
+	ForceMute(true);
+	/*
+	if (up)
+	{
+		setFreq(getFreq() + 400 );
+	}
+	else
+	{
+		setFreq(getFreq() - 400);
+	}
+	*/
+	
+	while(isFmHigh()||isVHigh())
+	{
+		if (up)
+		{
+			setFreq(getFreq() + 50);
+		}
+		else
+		{ 
+			setFreq(getFreq() - 50);
+		}
+		func();
+		delay(25);
+	}
+	
+	while (!isFmHigh()&&!isVHigh())
+	{
+		if (up)
+		{
+			setFreq(getFreq() + 50);
+		}
+		else
+		{
+			setFreq(getFreq() - 50);
+		}
+		func();
+		delay(25);
+	}
+	BD = bak;
+	ForceMute(false);
+}
+
+
+void FM1216::Serialdebug()
+{
+	Serial.println("Debug FM1216ME-Tuner");
+	Serial.println("--------------------");
+	Serial.print("DB1= ");
+	Serial.println(DB1);
+	Serial.print("DB2= ");
+	Serial.println(DB2);
+	Serial.print("CB= ");
+	Serial.println(CB);
+	Serial.print("BB= ");
+	Serial.println(BB);
+	Serial.print("AB= ");
+	Serial.println(AB);
+	Serial.print("SB= ");
+	Serial.println(SB);
+	Serial.println("");
+	Serial.println("");
+	//IF-Bytes
+	Serial.print("BD= ");
+	Serial.println(BD);
+	Serial.print("CD= ");
+	Serial.println(CD);
+	Serial.print("ED= ");
+	Serial.println(ED);
+	Serial.print("DD= ");
+	Serial.println(DD);
+	Serial.println("---------------");
+
+}
+
 
 void FM1216::update()
 {

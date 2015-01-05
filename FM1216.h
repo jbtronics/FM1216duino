@@ -25,6 +25,7 @@
 #include <Arduino.h>
 //#include <Wire/Wire.h>
 
+typedef void(*voidFuncPtr)(void);
 
 //Config Soft I2C Library
 #define SDA_PORT	PORTC
@@ -65,16 +66,108 @@
 #define AGC_103		5
 #define AGC_EXT		6	//External AGC 
 #define AGC_OFF		7	//disable AGC
-	
+
+//Power on Reset Status
+#define POR_Tuner	1	//Tuner Power-on-Reset flag =1
+#define POR_InF		2	//IF Power-on-Reset
+#define POR_Both	3	//Both's Power-on-Reset flag=1
+
+//AFC-Status
+#define AFC_m187		7	//F0-187.5kHz
+#define AFC_m162		6	//F0-162.5kHz
+#define AFC_m137		5	//F0-137.5kHz
+#define AFC_m112		4	//F0-112.5kHz
+#define AFC_m87			3	//F0-87.5kHz
+#define AFC_m62			2	//F0-62.5kHz
+#define AFC_m37			1	//F0-37.5kHz
+#define AFC_m12			0	//F0-12.5kHz
+#define AFC_p12			15	//F0+12.5kHz
+#define AFC_p37			14	//F0+37.5kHz
+#define	AFC_p62			13	//F0+62.5kHz
+#define AFC_p87			12	//F0+87.5kHz
+#define AFC_p112		11	//F0+112.5kHz
+#define AFC_p137		10	//F0+137.5kHz
+#define AFC_p162		9	//F0+162.5kHz
+#define AFC_p187		8	//F0+187.5kHz
+
+//internal bitnames
+//Tunerregister
+//Controlbyte
+#define CP			6	//Chargepump
+#define T2			5	//Testmodebit 1
+#define T1			4	//2
+#define T0			3	//3
+#define RSA			2	//Stepsize A
+#define RSB			1	
+#define OS			0	//PLL deactivate
+
+//Bandswitchbyte
+#define P6			6	//Stereo
+#define P4			4	//FM
+#define P3			3	//FM
+#define P2			2	//Band H
+#define P1			1	//Band M
+#define P0			0	//Band L
+
+//Auxiliarybyte
+#define ATC			7	//AGC Timeconstant
+#define AL2			6	//AGC Takeover
+#define AL1			5	//AGC Takeover
+#define AL0			4	//AGC Takeover
+
+//Statusbyte
+#define POR			7	//Power on Reset
+#define FL			6	//Frequency Lock
+#define AGC			3	//AGC active
+#define SA2			2	//FM Transmitted in Stereo?
+#define SA1			1	//FM Transmitted in Stereo?
+#define SA0			0	//FM Transmitted in Stereo?
+
+//IF-Register
+//B Data
+#define B7			7	//L' Sound Switch
+#define B6			6	//FM High-Sens
+#define B5			5	//Force Audio Mute
+#define B4			4	//FM-Radio
+#define B3			3	//FM-Radio
+#define B2			2	//QSS Mode
+#define B1			1	//no Mute of FM AF OUTPUT
+#define B0			0	//Sound Trap
+
+//C Data
+#define C7			7	//0dB Audio Gain
+#define C6			6	//De-emphasis OFF
+#define C5			5	//De-emphasis OFF
+
+//E Data
+#define E7			7	//VIF AGC OUTPUT
+#define E6			6	//L Standard PLL Gating
+#define E5			5	//IF Gain normal
+#define E4			4	//Video IF Frequency
+#define E3			3	//Video IF Frequency
+#define E2			2	//Video IF Frequency
+#define E1			1	//TV Sound Carrier Frequency
+#define E0			0	//TV Sound Carrier Frequency
+
+//D Data
+#define AFCWIN		7	//Freq inside AFC window
+#define VIFL		6	//Video IF Level High=1
+#define FMIFL		5	//FM IF Level High?
+#define AFC4		4	//AFC status
+#define AFC3		3	//AFC status
+#define AFC2		2	//AFC status
+#define AFC1		1	//AFC status
+#define PONR		0	//Power-on reset?
+
 #endif
 
 class FM1216
 {
 private:
 	uint8_t DB1, DB2, CB, BB, AB;	//Tuner Registers
-	//uint8_t SB;						//Statusbyte Tuner
+	uint8_t SB;						//Statusbyte Tuner
 	uint8_t BD, CD, ED;				//IF Registers
-	//uint8_t DD;						//Data Byte
+	uint8_t DD;						//Data Byte
 	uint16_t StepHz;
 	uint16_t IFFreq;
 	uint32_t Freq;
@@ -94,7 +187,20 @@ public:
 	void setBand(uint8_t band);		//set Band
 	void setAGC(uint8_t agc);		//set AGC Take-Over Voltage
 	void setGain(boolean g);		//activate Audio Gain
+	boolean getStereo();			//returns true if Stereo
+	void getStatus();				//Gets Statusbytes of Tuner and IF
+	boolean isStereoTrans();		//returns true if Stereo is transmitted 
+	uint8_t getPowerOnReset();		//returns Power on Reset status of IF and Tuner
+	boolean getFreqLocked();		//returns true if PLL-Ref is locked for 1ms
+	boolean isAGC();				//returns true if AGC is active
+	boolean isFmHigh();				//returns true if FM-IF is high
+	boolean isVHigh();				//returns true if Video-IF is high
+	uint8_t getAFCStatus();			//returns the difference bettween nominal IF and AFC IF(see defines AFC_xxxx)
+	boolean isFinAFC();				//returns true if the IF-Freq is in the AFC-window
+	void scan(boolean up);			//scan and tune to the next Station
+	void scan(boolean up, voidFuncPtr print); //like scan. Calls the function between scan cycles
 	
 
+	void Serialdebug();				//Prints Registervalue over Serial
 };
 
